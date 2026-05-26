@@ -26,7 +26,7 @@ public class Main {
             }
 
             opcao = scanner.nextInt();
-            scanner.nextLine(); // Limpa o buffer
+            scanner.nextLine();
 
             if (opcao == 0) {
                 System.out.println("\nEncerrando o programa... Até logo!");
@@ -52,8 +52,15 @@ public class Main {
                             service.listarRepositorios(username);
                             break;
                     }
+                } catch (UsuarioNaoEncontradoException e) {
+                    // Erro controlado de negócio (Usuário digitou algo errado)
+                    System.out.println("\n🔍 " + e.getMessage());
+                } catch (GitHubApiException e) {
+                    // Erro controlado de infraestrutura (Internet caiu ou API fora do ar)
+                    System.out.println("\n🌐 Erro de Comunicação: " + e.getMessage());
                 } catch (Exception e) {
-                    System.err.println("❌ Erro ao processar requisição: " + e.getMessage());
+                    // Um "catch-all" genérico caso aconteça algo bizarro não previsto (ex: erro ao converter número)
+                    System.out.println("\n💥 Ocorreu um erro inesperado: " + e.getMessage());
                 }
             } else {
                 System.out.println("❌ Opção inválida! Tente novamente.");

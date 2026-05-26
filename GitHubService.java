@@ -1,5 +1,6 @@
 package my.project;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -11,8 +12,8 @@ public class GitHubService {
 
     private final HttpClient client = HttpClient.newHttpClient();
 
-    // Opção 1: Buscar dados gerais do perfil
-    public Usuario buscarUsuario(String username) throws Exception {
+    // Repare que as assinaturas NÃO possuem mais "throws Exception"
+    public Usuario buscarUsuario(String username) {
         String url = "https://api.github.com/users/" + username;
         String json = fazerRequisicao(url);
 
@@ -25,14 +26,13 @@ public class GitHubService {
         String reposStr = extrairValor(json, "public_repos");
         if (reposStr != null) usuario.setPublicRepos(Integer.parseInt(reposStr));
 
-        String followersStr = extrairValor(json, "followers");
+        String followersStr = extrairValor(json, "followers"); // método corrigido abaixo
         if (followersStr != null) usuario.setFollowers(Integer.parseInt(followersStr));
 
         return usuario;
     }
 
-    // Opção 2: Listar repositórios (Array JSON)
-    public void listarRepositorios(String username) throws Exception {
+    public void listarRepositorios(String username) {
         String url = "https://api.github.com/users/" + username + "/repos";
         String json = fazerRequisicao(url);
 
@@ -55,26 +55,31 @@ public class GitHubService {
         System.out.println("=======================================");
     }
 
-    // Método privado auxiliar para requisição HTTP
-    private String fazerRequisicao(String url) throws Exception {
+    // Onde a mágica do tratamento acontece
+    private String fazerRequisicao(String url) {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("User-Agent", "Java-HttpClient")
                 .GET()
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        try {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() == 404) {
-            throw new RuntimeException("Perfil não encontrado no GitHub.");
-        } else if (response.statusCode() != 200) {
-            throw new RuntimeException("Erro na API do GitHub. Status: " + response.statusCode());
+            if (response.statusCode() == 404) {
+                throw new UsuarioNaoEncontradoException("O usuário informado não existe no GitHub.");
+            } else if (response.statusCode() != 200) {
+                throw new GitHubApiException("Falha na API do GitHub. Status HTTP: " + response.statusCode(), null);
+            }
+
+            return response.body();
+
+        } catch (IOException | InterruptedException e) {
+            // Se a internet cair ou houver timeout, capturamos aqui e lançamos nossa exceção customizada
+            throw new GitHubApiException("Não foi possível conectar à API do GitHub. Verifique sua conexão com a internet.", e);
         }
-
-        return response.body();
     }
 
-    // Método privado auxiliar para extrair valores com Regex
     private String extrairValor(String json, String chave) {
         Pattern pattern = Pattern.compile("\"" + chave + "\"\\s*:\\s*\"?([^\",}]+)\"?");
         Matcher matcher = pattern.matcher(json);
