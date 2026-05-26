@@ -1,5 +1,3 @@
-package my.project;
-
 public class Usuario {
     private String login;
     private String name;
