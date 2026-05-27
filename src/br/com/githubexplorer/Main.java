@@ -77,12 +77,12 @@ public class Main {
         System.out.println("\n=======================================");
         System.out.println("📊 DADOS DO PERFIL:");
         System.out.println("=======================================");
-        System.out.println("Nome:         " + (usuario.getName() != null ? usuario.getName() : "Não informado"));
-        System.out.println("Username:     " + usuario.getLogin());
-        System.out.println("Biografia:    " + (usuario.getBio() != null ? usuario.getBio() : "Sem biografia"));
-        System.out.println("Localização:  " + (usuario.getLocation() != null ? usuario.getLocation() : "Não informada"));
-        System.out.println("Seguidores:   " + usuario.getFollowers());
-        System.out.println("Repositórios: " + usuario.getPublicRepos());
+        System.out.println("Nome:         " + (usuario.name() != null ? usuario.name() : "Não informado"));
+        System.out.println("Username:     " + usuario.login());
+        System.out.println("Biografia:    " + (usuario.bio() != null ? usuario.bio() : "Sem biografia"));
+        System.out.println("Localização:  " + (usuario.location() != null ? usuario.location() : "Não informada"));
+        System.out.println("Seguidores:   " + usuario.followers());
+        System.out.println("Repositórios: " + usuario.publicRepos());
         System.out.println("=======================================");
     }
 }

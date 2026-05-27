@@ -15,24 +15,23 @@ public class GitHubService {
 
     private final HttpClient client = HttpClient.newHttpClient();
 
-    // Repare que as assinaturas NÃO possuem mais "throws Exception"
     public Usuario buscarUsuario(String username) {
         String url = "https://api.github.com/users/" + username;
         String json = fazerRequisicao(url);
 
-        Usuario usuario = new Usuario();
-        usuario.setLogin(extrairValor(json, "login"));
-        usuario.setName(extrairValor(json, "name"));
-        usuario.setBio(extrairValor(json, "bio"));
-        usuario.setLocation(extrairValor(json, "location"));
+        String login = extrairValor(json, "login");
+        String name = extrairValor(json, "name");
+        String bio = extrairValor(json, "bio");
+        String location = extrairValor(json, "location");
 
         String reposStr = extrairValor(json, "public_repos");
-        if (reposStr != null) usuario.setPublicRepos(Integer.parseInt(reposStr));
+        int publicRepos = (reposStr != null) ? Integer.parseInt(reposStr) : 0;
 
-        String followersStr = extrairValor(json, "followers"); // método corrigido abaixo
-        if (followersStr != null) usuario.setFollowers(Integer.parseInt(followersStr));
+        String followersStr = extrairValor(json, "followers");
+        int followers = (followersStr != null) ? Integer.parseInt(followersStr) : 0;
 
-        return usuario;
+        // Criando o objeto usando o construtor do Record (imutável)
+        return new Usuario(login, name, bio, location, publicRepos, followers);
     }
 
     public void listarRepositorios(String username) {
@@ -58,7 +57,6 @@ public class GitHubService {
         System.out.println("=======================================");
     }
 
-    // Onde a mágica do tratamento acontece
     private String fazerRequisicao(String url) {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -78,16 +76,21 @@ public class GitHubService {
             return response.body();
 
         } catch (IOException | InterruptedException e) {
-            // Se a internet cair ou houver timeout, capturamos aqui e lançamos nossa exceção customizada
             throw new GitHubApiException("Não foi possível conectar à API do GitHub. Verifique sua conexão com a internet.", e);
         }
     }
 
     private String extrairValor(String json, String chave) {
-        Pattern pattern = Pattern.compile("\"" + chave + "\"\\s*:\\s*\"?([^\",}]+)\"?");
+        // Regex aprimorada para capturar valores com ou sem aspas de forma limpa
+        Pattern pattern = Pattern.compile("\"" + chave + "\"\\s*:\\s*\"?([^\",\\n}]+)\"?");
         Matcher matcher = pattern.matcher(json);
         if (matcher.find()) {
-            return matcher.group(1).trim();
+            String valor = matcher.group(1).trim();
+            // Remove aspas residuais se houver
+            if (valor.startsWith("\"") && valor.endsWith("\"")) {
+                valor = valor.substring(1, valor.length() - 1);
+            }
+            return valor.equals("null") ? null : valor;
         }
         return null;
     }
