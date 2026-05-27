@@ -8,8 +8,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,12 +20,22 @@ public class GitHubService {
 
     private final HttpClient client = HttpClient.newHttpClient();
 
-    // Criando um cache simples na memória que armazena até 5 usuários
+    // Cache de Utilizadores (Mantém os últimos 5)
     private final Map<String, Usuario> usuarioCache = Collections.synchronizedMap(
-            new LinkedHashMap<String, Usuario>(5, 0.75f, true) {
+            new LinkedHashMap<>(5, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<String, Usuario> eldest) {
-                    return size() > 5; // Remove o mais antigo se passar de 5 itens
+                    return size() > 5;
+                }
+            }
+    );
+
+    // NOVO: Cache de Repositórios (Mantém as listas dos últimos 5 utilizadores pesquisados)
+    private final Map<String, List<String>> repositoriosCache = Collections.synchronizedMap(
+            new LinkedHashMap<>(5, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+                    return size() > 5;
                 }
             }
     );
@@ -31,55 +43,57 @@ public class GitHubService {
     public Usuario buscarUsuario(String username) {
         String usernameChave = username.toLowerCase().trim();
 
-        // Se o usuário já estiver no cache, retorna direto da memória!
         if (usuarioCache.containsKey(usernameChave)) {
             System.out.println("\n⚡ [CACHE] Recuperando dados da memória para: " + username);
             return usuarioCache.get(usernameChave);
         }
 
-        // Se não estiver, faz a busca normal na API
-        String url = "https://api.github.com/users/" + usernameChave;
-        String json = fazerRequisicao(url);
+        try (LoadingAnimation animation = new LoadingAnimation("🔍 A aceder à API do GitHub...")) {
+            String url = "https://api.github.com/users/" + usernameChave;
+            String json = fazerRequisicao(url);
 
-        String login = extrairValor(json, "login");
-        String name = extrairValor(json, "name");
-        String bio = extrairValor(json, "bio");
-        String location = extrairValor(json, "location");
+            String login = extrairValor(json, "login");
+            String name = extrairValor(json, "name");
+            String bio = extrairValor(json, "bio");
+            String location = extrairValor(json, "location");
 
-        String reposStr = extrairValor(json, "public_repos");
-        int publicRepos = (reposStr != null) ? Integer.parseInt(reposStr) : 0;
+            String reposStr = extrairValor(json, "public_repos");
+            int publicRepos = (reposStr != null) ? Integer.parseInt(reposStr) : 0;
 
-        String followersStr = extrairValor(json, "followers");
-        int followers = (followersStr != null) ? Integer.parseInt(followersStr) : 0;
+            String followersStr = extrairValor(json, "followers");
+            int followers = (followersStr != null) ? Integer.parseInt(followersStr) : 0;
 
-        Usuario usuario = new Usuario(login, name, bio, location, publicRepos, followers);
-
-        // Salva no cache antes de retornar
-        usuarioCache.put(usernameChave, usuario);
-        return usuario;
+            Usuario usuario = new Usuario(login, name, bio, location, publicRepos, followers);
+            usuarioCache.put(usernameChave, usuario);
+            return usuario;
+        }
     }
 
-    public void listarRepositorios(String username) {
-        String url = "https://api.github.com/users/" + username + "/repos";
-        String json = fazerRequisicao(url);
+    public List<String> listarRepositorios(String username) {
+        String usernameChave = username.toLowerCase().trim();
 
-        Pattern pattern = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
-        Matcher matcher = pattern.matcher(json);
-
-        System.out.println("\n=======================================");
-        System.out.println("📂 REPOSITÓRIOS PÚBLICOS DE " + username.toUpperCase() + ":");
-        System.out.println("=======================================");
-
-        int contador = 1;
-        while (matcher.find()) {
-            System.out.println(contador + ". " + matcher.group(1));
-            contador++;
+        // ATUALIZAÇÃO: Se a lista de repositórios já estiver no cache, devolve imediatamente
+        if (repositoriosCache.containsKey(usernameChave)) {
+            System.out.println("\n⚡ [CACHE] Recuperando repositórios da memória para: " + username);
+            return repositoriosCache.get(usernameChave);
         }
 
-        if (contador == 1) {
-            System.out.println("Nenhum repositório público encontrado ou perfil vazio.");
+        try (LoadingAnimation animation = new LoadingAnimation("📂 A carregar lista de repositórios...")) {
+            String url = "https://api.github.com/users/" + usernameChave + "/repos";
+            String json = fazerRequisicao(url);
+
+            Pattern pattern = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
+            Matcher matcher = pattern.matcher(json);
+
+            List<String> repositorios = new ArrayList<>();
+            while (matcher.find()) {
+                repositorios.add(matcher.group(1));
+            }
+
+            // Guarda o resultado no cache (mesmo se for uma lista vazia)
+            repositoriosCache.put(usernameChave, repositorios);
+            return repositorios;
         }
-        System.out.println("=======================================");
     }
 
     private String fazerRequisicao(String url) {
@@ -93,7 +107,7 @@ public class GitHubService {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 404) {
-                throw new UsuarioNaoEncontradoException("O usuário informado não existe no GitHub.");
+                throw new UsuarioNaoEncontradoException("O utilizador informado não existe no GitHub.");
             } else if (response.statusCode() != 200) {
                 throw new GitHubApiException("Falha na API do GitHub. Status HTTP: " + response.statusCode(), null);
             }
@@ -106,12 +120,10 @@ public class GitHubService {
     }
 
     private String extrairValor(String json, String chave) {
-        // Regex aprimorada para capturar valores com ou sem aspas de forma limpa
         Pattern pattern = Pattern.compile("\"" + chave + "\"\\s*:\\s*\"?([^\",\\n}]+)\"?");
         Matcher matcher = pattern.matcher(json);
         if (matcher.find()) {
             String valor = matcher.group(1).trim();
-            // Remove aspas residuais se houver
             if (valor.startsWith("\"") && valor.endsWith("\"")) {
                 valor = valor.substring(1, valor.length() - 1);
             }

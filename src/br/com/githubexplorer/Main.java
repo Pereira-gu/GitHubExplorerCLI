@@ -3,74 +3,91 @@ package br.com.githubexplorer;
 import br.com.githubexplorer.exception.GitHubApiException;
 import br.com.githubexplorer.exception.UsuarioNaoEncontradoException;
 
+import java.util.List;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         GitHubService service = new GitHubService();
-        int opcao = -1;
 
-        System.out.println("=======================================");
-        System.out.println("  BEM-VINDO AO EXPLORADOR DE GITHUB   ");
-        System.out.println("=======================================");
+        System.out.println("==================================================");
+        System.out.println("      🚀 VANILLA JAVA GITHUB EXPLORER CLI         ");
+        System.out.println("==================================================");
+        System.out.println("Digite 'help' a qualquer momento para ver os comandos.");
 
-        while (opcao != 0) {
-            System.out.println("\n--- MENU PRINCIPAL ---");
-            System.out.println("1 - Buscar dados de um perfil");
-            System.out.println("2 - Listar repositórios de um perfil");
-            System.out.println("0 - Sair do programa");
-            System.out.print("Escolha uma opção: ");
+        while (true) {
+            System.out.print("\ngithub-cli> ");
+            String entrada = scanner.nextLine().trim();
 
-            if (!scanner.hasNextInt()) {
-                System.out.println("❌ Opção inválida! Digite um número.");
-                scanner.next();
+            if (entrada.isEmpty()) {
                 continue;
             }
 
-            opcao = scanner.nextInt();
-            scanner.nextLine();
+            // Separa o comando dos argumentos por espaços em branco
+            String[] partes = entrada.split("\\s+", 2);
+            String comando = partes[0].toLowerCase();
+            String argumento = partes.length > 1 ? partes[1].trim() : "";
 
-            if (opcao == 0) {
+            if (comando.equals("exit") || comando.equals("quit")) {
                 System.out.println("\nEncerrando o programa... Até logo!");
                 break;
             }
 
-            if (opcao == 1 || opcao == 2) {
-                System.out.print("Digite o username do GitHub: ");
-                String username = scanner.nextLine().trim();
+            switch (comando) {
+                case "help":
+                    exibirAjuda();
+                    break;
 
-                if (username.isEmpty()) {
-                    System.out.println("❌ O username não pode ser vazio.");
-                    continue;
-                }
-
-                try {
-                    switch (opcao) {
-                        case 1:
-                            Usuario usuario = service.buscarUsuario(username);
-                            exibirPerfil(usuario);
-                            break;
-                        case 2:
-                            service.listarRepositorios(username);
-                            break;
+                case "user":
+                    if (argumento.isEmpty()) {
+                        System.out.println("❌ Uso correto: user <username>");
+                        break;
                     }
-                } catch (UsuarioNaoEncontradoException e) {
-                    // Erro controlado de negócio (Usuário digitou algo errado)
-                    System.out.println("\n🔍 " + e.getMessage());
-                } catch (GitHubApiException e) {
-                    // Erro controlado de infraestrutura (Internet caiu ou API fora do ar)
-                    System.out.println("\n🌐 Erro de Comunicação: " + e.getMessage());
-                } catch (Exception e) {
-                    // Um "catch-all" genérico caso aconteça algo bizarro não previsto (ex: erro ao converter número)
-                    System.out.println("\n💥 Ocorreu um erro inesperado: " + e.getMessage());
-                }
-            } else {
-                System.out.println("❌ Opção inválida! Tente novamente.");
+                    try {
+                        Usuario usuario = service.buscarUsuario(argumento);
+                        exibirPerfil(usuario);
+                    } catch (UsuarioNaoEncontradoException e) {
+                        System.out.println("\n🔍 " + e.getMessage());
+                    } catch (GitHubApiException e) {
+                        System.out.println("\n🌐 Erro de Comunicação: " + e.getMessage());
+                    } catch (Exception e) {
+                        System.out.println("\n💥 Erro inesperado: " + e.getMessage());
+                    }
+                    break;
+
+                case "repos":
+                    if (argumento.isEmpty()) {
+                        System.out.println("❌ Uso correto: repos <username>");
+                        break;
+                    }
+                    try {
+                        List<String> repos = service.listarRepositorios(argumento);
+                        exibirRepositorios(argumento, repos);
+                    } catch (UsuarioNaoEncontradoException e) {
+                        System.out.println("\n🔍 " + e.getMessage());
+                    } catch (GitHubApiException e) {
+                        System.out.println("\n🌐 Erro de Comunicação: " + e.getMessage());
+                    } catch (Exception e) {
+                        System.out.println("\n💥 Erro inesperado: " + e.getMessage());
+                    }
+                    break;
+
+                default:
+                    System.out.println("❌ Comando '" + comando + "' não reconhecido. Digite 'help' para ver as opções.");
             }
         }
 
         scanner.close();
+    }
+
+    private static void exibirAjuda() {
+        System.out.println("\n--- 📖 COMANDOS DISPONÍVEIS ---");
+        System.out.println("  user <username>   - Busca e exibe os dados públicos do perfil.");
+        System.out.println("  repos <username>  - Lista todos os repositórios públicos do perfil.");
+        System.out.println("  help              - Exibe este menu de ajuda.");
+        System.out.println("  exit / quit       - Encerra a aplicação.");
+        System.out.println("---------------------------------");
     }
 
     private static void exibirPerfil(Usuario usuario) {
@@ -83,6 +100,21 @@ public class Main {
         System.out.println("Localização:  " + (usuario.location() != null ? usuario.location() : "Não informada"));
         System.out.println("Seguidores:   " + usuario.followers());
         System.out.println("Repositórios: " + usuario.publicRepos());
+        System.out.println("=======================================");
+    }
+
+    private static void exibirRepositorios(String username, List<String> repos) {
+        System.out.println("\n=======================================");
+        System.out.println("📂 REPOSITÓRIOS PÚBLICOS DE " + username.toUpperCase() + ":");
+        System.out.println("=======================================");
+
+        if (repos.isEmpty()) {
+            System.out.println("Nenhum repositório público encontrado ou perfil vazio.");
+        } else {
+            for (int i = 0; i < repos.size(); i++) {
+                System.out.println((i + 1) + ". " + repos.get(i));
+            }
+        }
         System.out.println("=======================================");
     }
 }
