@@ -1,3 +1,8 @@
+package br.com.githubexplorer;
+
+import br.com.githubexplorer.exception.GitHubApiException;
+import br.com.githubexplorer.exception.UsuarioNaoEncontradoException;
+
 import java.util.Scanner;
 
 public class Main {

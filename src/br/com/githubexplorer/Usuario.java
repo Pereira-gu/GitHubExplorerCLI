@@ -1,3 +1,5 @@
+package br.com.githubexplorer;
+
 public class Usuario {
     private String login;
     private String name;

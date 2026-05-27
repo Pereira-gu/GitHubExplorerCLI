@@ -1,3 +1,8 @@
+package br.com.githubexplorer;
+
+import br.com.githubexplorer.exception.GitHubApiException;
+import br.com.githubexplorer.exception.UsuarioNaoEncontradoException;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
