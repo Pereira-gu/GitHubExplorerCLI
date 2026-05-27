@@ -8,6 +8,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,8 +18,27 @@ public class GitHubService {
 
     private final HttpClient client = HttpClient.newHttpClient();
 
+    // Criando um cache simples na memória que armazena até 5 usuários
+    private final Map<String, Usuario> usuarioCache = Collections.synchronizedMap(
+            new LinkedHashMap<String, Usuario>(5, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Usuario> eldest) {
+                    return size() > 5; // Remove o mais antigo se passar de 5 itens
+                }
+            }
+    );
+
     public Usuario buscarUsuario(String username) {
-        String url = "https://api.github.com/users/" + username;
+        String usernameChave = username.toLowerCase().trim();
+
+        // Se o usuário já estiver no cache, retorna direto da memória!
+        if (usuarioCache.containsKey(usernameChave)) {
+            System.out.println("\n⚡ [CACHE] Recuperando dados da memória para: " + username);
+            return usuarioCache.get(usernameChave);
+        }
+
+        // Se não estiver, faz a busca normal na API
+        String url = "https://api.github.com/users/" + usernameChave;
         String json = fazerRequisicao(url);
 
         String login = extrairValor(json, "login");
@@ -30,8 +52,11 @@ public class GitHubService {
         String followersStr = extrairValor(json, "followers");
         int followers = (followersStr != null) ? Integer.parseInt(followersStr) : 0;
 
-        // Criando o objeto usando o construtor do Record (imutável)
-        return new Usuario(login, name, bio, location, publicRepos, followers);
+        Usuario usuario = new Usuario(login, name, bio, location, publicRepos, followers);
+
+        // Salva no cache antes de retornar
+        usuarioCache.put(usernameChave, usuario);
+        return usuario;
     }
 
     public void listarRepositorios(String username) {
